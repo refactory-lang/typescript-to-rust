@@ -1,0 +1,57 @@
+# Triggered when an issue with 'needs-spec' label is assigned to Claude.
+# Runs claude-code to create a speckit specification from the issue.
+#
+# Prerequisites:
+#   1. Add ANTHROPIC_API_KEY to repo/org secrets
+#   2. Create a 'claude-bot' GitHub user (or use your preferred bot account)
+#   3. The bot needs write access to the repo (for branch creation, comments)
+#
+# Usage:
+#   Assign an issue labeled 'needs-spec' to 'claude-bot' → spec is auto-created
+
+name: Spec from Issue
+
+on:
+  issues:
+    types: [assigned]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-spec:
+    # Only run when assigned to claude-bot AND has needs-spec label
+    if: |
+      github.event.assignee.login == 'claude-bot' &&
+      contains(github.event.issue.labels.*.name, 'needs-spec')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run spec-from-issue
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          claude-code --print \
+            "/spec-from-issue $ISSUE_URL" \
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Skill"
+
+      - name: Push spec branch
+        run: |
+          # claude-code will have created the branch locally
+          # Push it to origin
+          BRANCH=$(git branch --show-current)
+          if [ "$BRANCH" != "master" ] && [ "$BRANCH" != "main" ]; then
+            git push -u origin "$BRANCH"
+          fi
