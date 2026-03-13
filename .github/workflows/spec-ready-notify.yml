@@ -1,5 +1,6 @@
-# When an issue is labeled 'spec-ready', auto-assign to Copilot
-# so it creates the spec automatically.
+# When an issue is labeled 'spec-ready':
+#   1. Append Copilot instructions to the issue body
+#   2. Assign Copilot so it picks up the issue with full context
 
 name: Spec Ready — Assign to Copilot
 
@@ -15,13 +16,67 @@ jobs:
     if: github.event.label.name == 'spec-ready'
     runs-on: ubuntu-latest
     steps:
-      - name: Assign Copilot and comment
+      - name: Append instructions, assign Copilot, and comment
         uses: actions/github-script@v7
         with:
           script: |
             const issue = context.payload.issue;
+            const currentBody = issue.body || '';
 
-            // Assign Copilot to the issue
+            // Copilot instructions to append to the issue body
+            const copilotInstructions = [
+              ``,
+              `---`,
+              ``,
+              `## Copilot Instructions`,
+              ``,
+              `When assigned this issue, create a speckit specification:`,
+              ``,
+              `### 1. Create the feature branch`,
+              `Run from the repo root:`,
+              '```bash',
+              `.specify/scripts/bash/create-new-feature.sh "" --json --short-name "<SHORT_NAME>" "<ISSUE_TITLE>"`,
+              '```',
+              `- Extract a 2-4 word \`<SHORT_NAME>\` from this issue title (e.g., \`tier2-control-flow\`)`,
+              `- Do NOT pass \`--number\` — the script auto-detects the next available number`,
+              `- Parse the JSON output to get \`BRANCH_NAME\` and \`SPEC_FILE\` paths`,
+              ``,
+              `### 2. Write the specification`,
+              `Write \`specs/<branch>/spec.md\` using \`.specify/templates/spec-template.md\` as the template.`,
+              `Use the **Overview**, **Scope**, and **Success Criteria** sections from this issue as input.`,
+              ``,
+              `The spec must:`,
+              `- Focus on WHAT and WHY — no implementation details (languages, frameworks, APIs)`,
+              `- Include functional requirements that are testable and unambiguous`,
+              `- Include success criteria that are measurable and technology-agnostic`,
+              `- Reference this issue URL in the spec`,
+              `- Include dependencies from the **Context** section`,
+              ``,
+              `### 3. Create the quality checklist`,
+              `Write \`specs/<branch>/checklists/requirements.md\` validating:`,
+              `- No implementation details in specification`,
+              `- All requirements are testable`,
+              `- Success criteria are measurable`,
+              `- Scope is clearly bounded`,
+              ``,
+              `### 4. Update this issue`,
+              `- Remove labels: \`needs-spec\`, \`spec-ready\``,
+              `- Add label: \`has-spec\` (create if it doesn't exist)`,
+              `- Comment: \`Specification created: specs/<branch>/spec.md on branch <branch>\``,
+              ``,
+              `### 5. Open a PR`,
+              `Create a pull request with the spec for review. Title: \`spec: <issue title>\``,
+            ].join('\n');
+
+            // Append instructions to issue body
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: currentBody + copilotInstructions,
+            });
+
+            // Assign Copilot
             await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -29,23 +84,17 @@ jobs:
               assignees: ['copilot'],
             });
 
-            // Comment with what's happening
-            const body = [
-              `### Specification in progress`,
-              ``,
-              `Copilot has been assigned to create a formal spec from this issue.`,
-              ``,
-              `It will:`,
-              `1. Create a feature branch under \`specs/\``,
-              `2. Write the specification following the speckit template`,
-              `3. Open a PR and comment back here with the spec location`,
-              ``,
-              `**Manual alternative**: Run \`/spec-from-issue ${issue.html_url}\` in a repo checkout.`,
-            ].join('\n');
-
+            // Comment
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: body,
+              body: [
+                `### Specification in progress`,
+                ``,
+                `Copilot has been assigned to create a formal spec from this issue.`,
+                `Instructions have been appended to the issue body.`,
+                ``,
+                `**Manual alternative**: Run \`/spec-from-issue ${issue.html_url}\` in a repo checkout.`,
+              ].join('\n'),
             });
