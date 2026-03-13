@@ -1,6 +1,13 @@
-# When an issue is labeled 'spec-ready':
-#   1. Append Copilot instructions to the issue body
-#   2. Assign Copilot so it picks up the issue with full context
+# When a feature issue is labeled 'spec-ready':
+#   1. Verify the issue is a feature (not a bug/task/question)
+#   2. Append Copilot instructions to the issue body
+#   3. Assign Copilot so it picks up the issue with full context
+#
+# Feature detection (any of):
+#   - GitHub Issue Type is "Feature" (repos with issue types enabled)
+#   - Issue has 'enhancement' or 'feature' label
+#   - Issue title starts with "Phase" (convention for phase roadmap issues)
+#   - Issue has 'needs-spec' label (explicit opt-in)
 
 name: Spec Ready — Assign to Copilot
 
@@ -16,65 +23,118 @@ jobs:
     if: github.event.label.name == 'spec-ready'
     runs-on: ubuntu-latest
     steps:
-      - name: Append instructions, assign Copilot, and comment
+      - name: Check if issue is a feature, append instructions, assign Copilot
         uses: actions/github-script@v7
         with:
           script: |
             const issue = context.payload.issue;
+            const labels = issue.labels.map(l => l.name.toLowerCase());
+            const title = issue.title || '';
+
+            // Check if this is a feature issue
+            const isFeature =
+              // GitHub Issue Type (if available)
+              (issue.issue_type && issue.issue_type.name === 'Feature') ||
+              // Label-based detection
+              labels.includes('enhancement') ||
+              labels.includes('feature') ||
+              labels.includes('needs-spec') ||
+              // Phase roadmap convention
+              title.startsWith('Phase ');
+
+            // Check it's NOT a bug/question/support
+            const isBugOrQuestion =
+              labels.includes('bug') ||
+              labels.includes('question') ||
+              labels.includes('support') ||
+              labels.includes('documentation') ||
+              (issue.issue_type && ['Bug', 'Task'].includes(issue.issue_type.name));
+
+            if (!isFeature || isBugOrQuestion) {
+              // Not a feature — comment and bail
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: [
+                  `### Skipped: not a feature issue`,
+                  ``,
+                  `The \`spec-ready\` label was added, but this issue doesn't appear to be a feature.`,
+                  `Speckit specifications are only created for feature issues.`,
+                  ``,
+                  `To proceed anyway, add the \`enhancement\` or \`needs-spec\` label and re-apply \`spec-ready\`.`,
+                ].join('\n'),
+              });
+
+              // Remove the spec-ready label since we're not acting on it
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                name: 'spec-ready',
+              });
+              return;
+            }
+
+            // --- It's a feature — proceed ---
+
             const currentBody = issue.body || '';
 
-            // Copilot instructions to append to the issue body
-            const copilotInstructions = [
-              ``,
-              `---`,
-              ``,
-              `## Copilot Instructions`,
-              ``,
-              `When assigned this issue, create a speckit specification:`,
-              ``,
-              `### 1. Create the feature branch`,
-              `Run from the repo root:`,
-              '```bash',
-              `.specify/scripts/bash/create-new-feature.sh "" --json --short-name "<SHORT_NAME>" "<ISSUE_TITLE>"`,
-              '```',
-              `- Extract a 2-4 word \`<SHORT_NAME>\` from this issue title (e.g., \`tier2-control-flow\`)`,
-              `- Do NOT pass \`--number\` — the script auto-detects the next available number`,
-              `- Parse the JSON output to get \`BRANCH_NAME\` and \`SPEC_FILE\` paths`,
-              ``,
-              `### 2. Write the specification`,
-              `Write \`specs/<branch>/spec.md\` using \`.specify/templates/spec-template.md\` as the template.`,
-              `Use the **Overview**, **Scope**, and **Success Criteria** sections from this issue as input.`,
-              ``,
-              `The spec must:`,
-              `- Focus on WHAT and WHY — no implementation details (languages, frameworks, APIs)`,
-              `- Include functional requirements that are testable and unambiguous`,
-              `- Include success criteria that are measurable and technology-agnostic`,
-              `- Reference this issue URL in the spec`,
-              `- Include dependencies from the **Context** section`,
-              ``,
-              `### 3. Create the quality checklist`,
-              `Write \`specs/<branch>/checklists/requirements.md\` validating:`,
-              `- No implementation details in specification`,
-              `- All requirements are testable`,
-              `- Success criteria are measurable`,
-              `- Scope is clearly bounded`,
-              ``,
-              `### 4. Update this issue`,
-              `- Remove labels: \`needs-spec\`, \`spec-ready\``,
-              `- Add label: \`has-spec\` (create if it doesn't exist)`,
-              `- Comment: \`Specification created: specs/<branch>/spec.md on branch <branch>\``,
-              ``,
-              `### 5. Open a PR`,
-              `Create a pull request with the spec for review. Title: \`spec: <issue title>\``,
-            ].join('\n');
+            // Don't append instructions if already present (idempotent)
+            if (currentBody.includes('## Copilot Instructions')) {
+              core.info('Copilot instructions already present in issue body, skipping append');
+            } else {
+              const copilotInstructions = [
+                ``,
+                `---`,
+                ``,
+                `## Copilot Instructions`,
+                ``,
+                `When assigned this issue, create a speckit specification:`,
+                ``,
+                `### 1. Create the feature branch`,
+                `Run from the repo root:`,
+                '```bash',
+                `.specify/scripts/bash/create-new-feature.sh "" --json --short-name "<SHORT_NAME>" "<ISSUE_TITLE>"`,
+                '```',
+                `- Extract a 2-4 word \`<SHORT_NAME>\` from this issue title (e.g., \`tier2-control-flow\`)`,
+                `- Do NOT pass \`--number\` — the script auto-detects the next available number`,
+                `- Parse the JSON output to get \`BRANCH_NAME\` and \`SPEC_FILE\` paths`,
+                ``,
+                `### 2. Write the specification`,
+                `Write \`specs/<branch>/spec.md\` using \`.specify/templates/spec-template.md\` as the template.`,
+                `Use the **Overview**, **Scope**, and **Success Criteria** sections from this issue as input.`,
+                ``,
+                `The spec must:`,
+                `- Focus on WHAT and WHY — no implementation details (languages, frameworks, APIs)`,
+                `- Include functional requirements that are testable and unambiguous`,
+                `- Include success criteria that are measurable and technology-agnostic`,
+                `- Reference this issue URL in the spec`,
+                `- Include dependencies from the **Context** section`,
+                ``,
+                `### 3. Create the quality checklist`,
+                `Write \`specs/<branch>/checklists/requirements.md\` validating:`,
+                `- No implementation details in specification`,
+                `- All requirements are testable`,
+                `- Success criteria are measurable`,
+                `- Scope is clearly bounded`,
+                ``,
+                `### 4. Update this issue`,
+                `- Remove labels: \`needs-spec\`, \`spec-ready\``,
+                `- Add label: \`has-spec\` (create if it doesn't exist)`,
+                `- Comment: \`Specification created: specs/<branch>/spec.md on branch <branch>\``,
+                ``,
+                `### 5. Open a PR`,
+                `Create a pull request with the spec for review. Title: \`spec: <issue title>\``,
+              ].join('\n');
 
-            // Append instructions to issue body
-            await github.rest.issues.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              body: currentBody + copilotInstructions,
-            });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: currentBody + copilotInstructions,
+              });
+            }
 
             // Assign Copilot
             await github.rest.issues.addAssignees({
