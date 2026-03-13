@@ -1,7 +1,7 @@
-# When an issue is labeled 'spec-ready', comment with instructions
-# for creating the spec (manually or by assigning to Copilot).
+# When an issue is labeled 'spec-ready', auto-assign to Copilot
+# so it creates the spec automatically.
 
-name: Spec Ready Notification
+name: Spec Ready — Assign to Copilot
 
 on:
   issues:
@@ -11,28 +11,36 @@ permissions:
   issues: write
 
 jobs:
-  notify:
+  assign-copilot:
     if: github.event.label.name == 'spec-ready'
     runs-on: ubuntu-latest
     steps:
-      - name: Comment with instructions
+      - name: Assign Copilot and comment
         uses: actions/github-script@v7
         with:
           script: |
             const issue = context.payload.issue;
+
+            // Assign Copilot to the issue
+            await github.rest.issues.addAssignees({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              assignees: ['copilot'],
+            });
+
+            // Comment with what's happening
             const body = [
-              `### Ready for specification`,
+              `### Specification in progress`,
               ``,
-              `This issue is ready to be converted into a formal spec. Two options:`,
+              `Copilot has been assigned to create a formal spec from this issue.`,
               ``,
-              `**Option A — Automated**: Assign this issue to **Copilot** and the spec will be created automatically.`,
+              `It will:`,
+              `1. Create a feature branch under \`specs/\``,
+              `2. Write the specification following the speckit template`,
+              `3. Open a PR and comment back here with the spec location`,
               ``,
-              `**Option B — Manual**: Run in the repo checkout:`,
-              `\`\`\``,
-              `/spec-from-issue ${issue.html_url}`,
-              `\`\`\``,
-              ``,
-              `The spec will be created on a feature branch under \`specs/\` and linked back here.`,
+              `**Manual alternative**: Run \`/spec-from-issue ${issue.html_url}\` in a repo checkout.`,
             ].join('\n');
 
             await github.rest.issues.createComment({
