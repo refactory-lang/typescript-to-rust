@@ -1,124 +1,210 @@
-# Feature Specification: Phase 1 TS-to-Rust Pipeline
+# Feature Specification: TypeScript-to-Rust Pipeline Phase 1
 
 **Feature Branch**: `001-ts-pipeline-phase1`
 **Created**: 2026-03-13
 **Status**: Draft
+**Input**: User description: "Implement Phase 1 of the TypeScript-to-Rust translation pipeline - TypeScript-as-Rust profile definition, normalize transforms, shadow library integration, and tier 1-2 deterministic transforms"
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Translate a TypeScript file to Rust via the full pipeline (Priority: P1)
+### User Story 1 - Normalize Idiomatic TypeScript to Profile-Compliant TypeScript (Priority: P1)
 
-As a developer, I want to run the full translation pipeline on a TypeScript-as-Rust profile-compliant TypeScript file and receive compilable Rust output, so that I can migrate TypeScript codebases to Rust without manual rewriting.
+A developer writes idiomatic TypeScript (using CommonJS requires, let/var declarations, throw statements, try/catch blocks, mutable arrays, type assertions, mutable classes, default exports, and callback-based pagination). The pipeline runs the 10 Tier 0 normalizers in sequence, rewriting the source into the TS-as-Rust profile subset before any Rust translation begins.
 
-**Acceptance Scenarios:**
+**Why this priority**: Normalization is the foundation of the entire pipeline. Every downstream transform assumes input conforms to the TS-as-Rust profile. Without normalizers, the deterministic transforms produce incorrect or non-compilable output.
 
-1. **Given** a TypeScript file conforming to the TS-as-Rust profile (no `any`, no dynamic property access, no prototype manipulation), **when** I run profile validation, **then** it passes with zero violations.
-2. **Given** a validated TypeScript file, **when** the 10 normalizers run, **then** TS-specific idioms (Promise, interface, enum, class, union types, optional chaining, nullish coalescing, type assertions, generics, decorators) are rewritten to intermediate forms closer to Rust semantics.
-3. **Given** normalized TypeScript, **when** the shadow rewrite runs for the 3 TS shadow libraries, **then** all shadow library imports are rewritten to their Rust crate path equivalents.
-4. **Given** shadow-rewritten TypeScript, **when** all 29 tier1/tier2 transforms run, **then** TypeScript syntax, types, error handling, control flow, and module structure are converted to idiomatic Rust.
-5. **Given** the final Rust output, **when** I run `cargo build`, `cargo clippy`, and `cargo test`, **then** all three pass with zero errors and zero warnings.
+**Independent Test**: Feed a TypeScript file containing CommonJS requires, let/var declarations, throw statements, and try/catch blocks into the normalize pipeline. Verify the output uses only ESM imports, const declarations, Result returns, and match-based error handling.
 
-### User Story 2 - Validate TS-as-Rust profile compliance (Priority: P1)
+**Acceptance Scenarios**:
 
-As a developer, I want to validate that my TypeScript source files conform to the TS-as-Rust profile before running the translation pipeline, so that I catch untranslatable patterns early.
+1. **Given** a file with `const fs = require('fs')`, **When** commonjs-to-esm runs, **Then** the output is `import fs from 'fs'`
+2. **Given** a file with `let x = 5; var y = 10;`, **When** let-var-to-const runs, **Then** the output uses `const x = 5; const y = 10;`
+3. **Given** a function with `throw new Error('fail')`, **When** throw-to-err runs, **Then** the function returns `Err('fail')` using a Result wrapper type
+4. **Given** a function returning `string | null`, **When** implicit-null-to-option runs, **Then** the return type becomes `Option<string>` using the shadow library Option type
+5. **Given** a try/catch block, **When** try-catch-to-result runs, **Then** the block is rewritten to use Result chaining with `.mapErr()`
+6. **Given** `arr.push(item); arr.splice(i, 1)`, **When** mutable-array-to-functional runs, **Then** output uses `[...arr, item]` and `arr.filter((_, idx) => idx !== i)`
+7. **Given** `const x = value as string`, **When** type-assertion-to-explicit runs, **Then** output uses an explicit type guard or runtime check
+8. **Given** a class with mutable fields, **When** mutable-class-to-readonly runs, **Then** all fields are marked `readonly` with builder-pattern mutation methods
+9. **Given** `export default function main()`, **When** default-to-named-exports runs, **Then** output is `export function main()`
+10. **Given** a callback-pagination pattern `fetchPage(cursor, callback)`, **When** callback-pagination-to-iterator runs, **Then** output uses an async generator yielding pages
 
-**Acceptance Scenarios:**
+---
 
-1. **Given** a TypeScript file that uses `any` type annotations, **when** I run profile validation (ast-grep rules), **then** it reports a violation with the file path, line number, and rule name (`no-any-type`).
-2. **Given** a TypeScript file that uses dynamic property access (`obj[dynamicKey]` where `dynamicKey` is not a literal), **when** I run profile validation, **then** it reports a violation (`no-dynamic-property-access`).
-3. **Given** a TypeScript file that uses `eval()`, `Function()` constructor, or `with` statements, **when** I run profile validation, **then** it reports violations for each occurrence.
-4. **Given** a TypeScript file using only profile-compliant constructs (typed interfaces, typed functions, enums, Result-pattern error handling, explicit generics), **when** I run profile validation, **then** it exits with code 0 and reports no violations.
-5. **Given** a TypeScript project directory, **when** I run profile validation recursively, **then** it processes all `.ts` files (excluding `node_modules` and `dist`) and reports a summary of violations.
+### User Story 2 - Tier 1 Deterministic Type and Syntax Transforms (Priority: P1)
 
-### User Story 3 - Debug translation failures (Priority: P2)
+A developer has profile-compliant TypeScript (post-normalization). The pipeline runs 11 Tier 1 transforms that perform direct syntactic translations from TypeScript constructs to their Rust equivalents: primitive types, const bindings, interfaces to structs, type aliases, enums, arrow functions to closures, imports to use statements, template literals to format!, array methods, string methods, and Record to HashMap.
 
-As a developer, I want clear diagnostics when a translation step fails, so that I can fix my source code or report a transform bug.
+**Why this priority**: Tier 1 transforms are 1:1 mechanical translations with no ambiguity. They form the bulk of translated output and are prerequisite for Tier 2 transforms that handle more complex patterns.
 
-**Acceptance Scenarios:**
+**Independent Test**: Pass a normalized TypeScript file containing interfaces, const declarations, enums, arrow functions, and template literals through the Tier 1 pipeline. Verify each construct maps to its Rust equivalent.
 
-1. **Given** a TypeScript file that fails during a normalizer, **when** I run the pipeline with verbose output, **then** I see which normalizer failed, the AST node it failed on, and the original TypeScript source at that location.
-2. **Given** a translation that produces Rust code failing `cargo build`, **when** I inspect the pipeline output, **then** each output section is annotated with the transform that produced it.
-3. **Given** a construct that no transform can handle, **when** the pipeline completes, **then** it is wrapped in a structured prompt comment with the original TypeScript, the reason it was not translated, and a suggested Rust pattern.
+**Acceptance Scenarios**:
+
+1. **Given** `const x: number = 42`, **When** type-primitives runs, **Then** output is `let x: i64 = 42` (number -> i64, string -> String, boolean -> bool)
+2. **Given** `const name: string = "hello"`, **When** const transform runs, **Then** output is `let name: String = String::from("hello")`
+3. **Given** `interface User { name: string; age: number; }`, **When** interface-to-struct runs, **Then** output is `struct User { name: String, age: i64 }`
+4. **Given** `type ID = string`, **When** type-alias runs, **Then** output is `type ID = String;`
+5. **Given** `enum Color { Red, Green, Blue }`, **When** enum transform runs, **Then** output is `enum Color { Red, Green, Blue }`
+6. **Given** `const add = (a: number, b: number): number => a + b`, **When** arrow-to-closure runs, **Then** output is `let add = |a: i64, b: i64| -> i64 { a + b };`
+7. **Given** `import { readFile } from 'fs'`, **When** import-to-use runs, **Then** output is `use fs::readFile;`
+8. **Given** `` `Hello ${name}, you are ${age}` ``, **When** template-literal runs, **Then** output is `format!("Hello {}, you are {}", name, age)`
+9. **Given** `arr.map(x => x * 2).filter(x => x > 5)`, **When** array-methods runs, **Then** output is `arr.iter().map(|x| x * 2).filter(|x| *x > 5).collect::<Vec<_>>()`
+10. **Given** `str.includes("hello")`, **When** string-methods runs, **Then** output is `str.contains("hello")`
+11. **Given** `const m: Record<string, number> = {}`, **When** record-to-hashmap runs, **Then** output is `let m: HashMap<String, i64> = HashMap::new()`
+
+---
+
+### User Story 3 - Shadow Library Rewrite for TS Module Compatibility (Priority: P2)
+
+After normalization, the pipeline replaces TypeScript standard library and third-party module imports with shadow library equivalents that mirror Rust standard library semantics (via napi-rs bindings). This allows the normalized TypeScript to reference types like Option, Result, Vec, and HashMap that have direct Rust counterparts.
+
+**Why this priority**: Shadow libraries bridge the semantic gap between TypeScript's standard library and Rust's. Without them, normalizers produce Option/Result types that have no TypeScript definition, and transforms cannot map them to Rust types.
+
+**Independent Test**: Pass a normalized file that imports from `@ts-rust/std` (Option, Result) and `@ts-rust/collections` (Vec, HashMap) through the shadow rewrite. Verify imports are rewritten to the shadow library paths used during Rust code generation.
+
+**Acceptance Scenarios**:
+
+1. **Given** a file importing `Option` from the TS-as-Rust profile types, **When** shadow rewrite runs, **Then** the import path points to the shadow library implementing `Option<T>` with `Some(T)` and `None` variants
+2. **Given** a file importing `Result` from the TS-as-Rust profile types, **When** shadow rewrite runs, **Then** the import path points to the shadow library implementing `Result<T, E>` with `Ok(T)` and `Err(E)` variants
+3. **Given** a file importing `HashMap` from collections, **When** shadow rewrite runs, **Then** the import maps to `std::collections::HashMap` in the Rust output
+
+---
+
+### User Story 4 - Tier 2 Deterministic Pattern Transforms (Priority: P2)
+
+A developer has TypeScript code that uses async/await, classes, destructuring, nullish coalescing, object spread, optional chaining, Result chains, and try/catch. The pipeline applies 8 Tier 2 transforms that translate these patterns into idiomatic Rust equivalents.
+
+**Why this priority**: Tier 2 transforms handle patterns that are common in real-world TypeScript but require structural changes (not just syntactic substitution). They depend on Tier 1 type mappings being in place.
+
+**Independent Test**: Pass a file containing a TypeScript class with async methods, destructuring assignments, optional chaining, and nullish coalescing through the Tier 2 pipeline. Verify each pattern translates to idiomatic Rust.
+
+**Acceptance Scenarios**:
+
+1. **Given** `async function fetchData(): Promise<string> { return await fetch(url); }`, **When** async-await runs, **Then** output is `async fn fetch_data() -> Result<String, Box<dyn Error>> { fetch(url).await }`
+2. **Given** a class `class User { constructor(public name: string) {} greet() { return this.name; } }`, **When** class-to-struct-impl runs, **Then** output is a `struct User` with `impl User` block containing methods
+3. **Given** `const { name, age } = user;`, **When** destructuring runs, **Then** output is `let User { name, age } = user;`
+4. **Given** `const val = x ?? defaultVal;`, **When** nullish-coalescing runs, **Then** output is `let val = x.unwrap_or(default_val);`
+5. **Given** `const merged = { ...defaults, ...overrides };`, **When** object-spread runs, **Then** output uses a struct merge pattern or builder
+6. **Given** `const name = user?.profile?.name;`, **When** optional-chaining runs, **Then** output is `let name = user.as_ref().and_then(|u| u.profile.as_ref()).map(|p| p.name.clone());`
+7. **Given** a chain of Result operations, **When** result-chain runs, **Then** output uses the `?` operator for error propagation
+8. **Given** a try/catch block with typed errors, **When** try-catch-to-match runs, **Then** output uses `match result { Ok(v) => ..., Err(e) => ... }`
+
+---
+
+### User Story 5 - End-to-End Pipeline Execution (Priority: P3)
+
+A developer runs the full pipeline on a TypeScript source file. The pipeline executes all stages in order: normalize (Tier 0) -> shadow rewrite (Tier 0.5) -> Tier 1 transforms -> Tier 2 transforms. The final output is a syntactically valid Rust source file that compiles with `rustc` or `cargo build`.
+
+**Why this priority**: E2E validation proves the pipeline stages compose correctly. Individual transforms may each be correct but produce incompatible intermediate states if not properly ordered.
+
+**Independent Test**: Create a TypeScript file that exercises at least one construct from each tier. Run the full pipeline and verify the Rust output compiles without errors using `cargo check`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a TypeScript file with CommonJS imports, let declarations, an interface, const bindings, template literals, and optional chaining, **When** the full pipeline runs, **Then** the output is a `.rs` file that passes `cargo check`
+2. **Given** a multi-file TypeScript project with cross-module imports, **When** the pipeline runs on all files, **Then** each output `.rs` file has correct `use` statements referencing sibling modules
+3. **Given** a TypeScript file with constructs outside the TS-as-Rust profile, **When** the pipeline runs, **Then** it emits a diagnostic error identifying the unsupported construct and its location
+
+---
 
 ### Edge Cases
 
-1. **Empty file**: An empty TypeScript file produces a valid empty Rust file or minimal stub.
-2. **Re-exports**: `export { Foo } from './bar'` chains are resolved to Rust `pub use` statements with correct module paths.
-3. **Union types**: `string | number` maps to a Rust enum with `String` and `i64` variants, or to a trait object where appropriate.
-4. **Generic constraints**: `<T extends SomeTrait>` maps to Rust `<T: SomeTrait>` with correct trait bound syntax.
-5. **Async/await**: `async function` and `await` expressions map to Rust `async fn` and `.await` with appropriate `Future` traits.
-6. **Index signatures**: `{ [key: string]: Value }` maps to `HashMap<String, Value>`.
-7. **Tuple types**: `[string, number, boolean]` maps to Rust `(String, i64, bool)`.
-8. **Intersection types**: `TypeA & TypeB` maps to a Rust struct implementing both traits or containing both sets of fields.
-9. **Reserved word collisions**: TypeScript identifiers that collide with Rust reserved words (`type`, `match`, `loop`, `move`, `ref`, `self`, `crate`, `mod`) are prefixed with `r#`.
+- What happens when a normalizer encounters code that is already profile-compliant? The normalizer must be idempotent and leave compliant code unchanged.
+- How does the pipeline handle circular imports between TypeScript modules? The import-to-use transform must detect cycles and emit a diagnostic rather than generating invalid Rust `use` statements.
+- What happens when type inference is required but no explicit type annotation exists? The type-primitives transform must either infer the Rust type from usage context or emit a `// TODO: type annotation required` comment.
+- How does the pipeline handle union types that do not map to Option or Result? Unions like `string | number` must be flagged as unsupported with a diagnostic, since Rust has no implicit union type.
+- What happens when a class uses inheritance (`extends`)? The class-to-struct-impl transform must detect inheritance and either flatten single-level inheritance into trait composition or emit a diagnostic for multi-level hierarchies.
+- How does the pipeline handle generic type parameters? `interface Container<T>` must translate to `struct Container<T>` with appropriate trait bounds.
+- What happens when async functions contain multiple await points with error handling? The async-await transform must correctly chain `?` operators and preserve error propagation order.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-**FR-001**: The TS-as-Rust profile shall be defined as a set of ast-grep rules that reject: `any` type, `unknown` type used without narrowing, dynamic property access, `eval()`, `Function()` constructor, `with` statements, prototype manipulation, `arguments` object usage, and implicit `this` binding.
+#### TS-as-Rust Profile Definition
 
-**FR-002**: The `normalize/promise` normalizer shall convert `Promise<T>` return types to `Result<T, E>` patterns, `async/await` to Rust async equivalents, and `.then()/.catch()` chains to `?` operator chains.
+- **FR-001**: System MUST define the TS-as-Rust profile as a set of rules specifying which TypeScript constructs are permitted in profile-compliant code (stored in `profile/rules/`)
+- **FR-002**: Profile MUST require all variable declarations to use `const` (no `let` or `var`)
+- **FR-003**: Profile MUST require all imports to use ESM named imports (no default imports, no CommonJS require)
+- **FR-004**: Profile MUST require all error handling to use Result<T, E> return types (no throw statements, no try/catch)
+- **FR-005**: Profile MUST require all nullable values to use Option<T> (no implicit null/undefined unions)
+- **FR-006**: Profile MUST require all arrays to be treated as immutable (functional operations only, no push/pop/splice)
+- **FR-007**: Profile MUST require all class fields to be readonly with explicit type annotations
+- **FR-008**: Profile MUST require explicit type annotations on all function parameters and return types
+- **FR-009**: Profile MUST prohibit `any`, `unknown` (except in constrained generics), and type assertions
 
-**FR-003**: The `normalize/interface` normalizer shall convert TypeScript `interface` declarations to Rust `trait` definitions (when used polymorphically) or `struct` definitions (when used as data shapes), based on usage analysis.
+#### Tier 0 Normalizers
 
-**FR-004**: The `normalize/enum` normalizer shall convert TypeScript `enum` declarations to Rust `enum` with explicit discriminants for numeric enums and string-valued variants for string enums.
+- **FR-010**: System MUST implement `commonjs-to-esm` normalizer that rewrites `require()` calls to ESM `import` statements and `module.exports` to `export`
+- **FR-011**: System MUST implement `let-var-to-const` normalizer that rewrites all `let` and `var` declarations to `const`, introducing new bindings where reassignment occurs
+- **FR-012**: System MUST implement `throw-to-err` normalizer that replaces `throw` statements with `return Err(...)` and updates function signatures to return `Result<T, E>`
+- **FR-013**: System MUST implement `implicit-null-to-option` normalizer that replaces `T | null`, `T | undefined`, and `T | null | undefined` return/parameter types with `Option<T>`
+- **FR-014**: System MUST implement `try-catch-to-result` normalizer that rewrites try/catch blocks into Result-based control flow using `.map()` and `.mapErr()`
+- **FR-015**: System MUST implement `mutable-array-to-functional` normalizer that replaces array mutation methods (push, pop, splice, shift, unshift) with immutable alternatives (spread, filter, slice, concat)
+- **FR-016**: System MUST implement `type-assertion-to-explicit` normalizer that replaces `as` type assertions with runtime type guards or explicit conversion functions
+- **FR-017**: System MUST implement `mutable-class-to-readonly` normalizer that marks all class fields as `readonly` and introduces builder-pattern setter methods that return new instances
+- **FR-018**: System MUST implement `default-to-named-exports` normalizer that converts `export default` to named exports
+- **FR-019**: System MUST implement `callback-pagination-to-iterator` normalizer that converts callback-based pagination into async generator functions using `yield*`
+- **FR-020**: Each normalizer MUST be idempotent: running a normalizer on already-compliant code MUST produce identical output
 
-**FR-005**: The `normalize/class` normalizer shall convert TypeScript `class` declarations to Rust `struct` + `impl` blocks, with `constructor` mapping to `fn new()`, methods mapping to `impl` methods, and `extends` mapping to trait composition or struct embedding.
+#### Tier 0.5 Shadow Library Rewrite
 
-**FR-006**: The `normalize/union-type` normalizer shall convert TypeScript union types (`A | B | C`) to Rust enums with one variant per union member, generating appropriate `From` trait implementations.
+- **FR-021**: System MUST implement shadow rewrite rules (in `typescript-shadow-rewrite/rules/rewrite-ts-shadows.yml`) that map TS-as-Rust profile types to shadow library import paths
+- **FR-022**: Shadow library MUST provide TypeScript type definitions for `Option<T>` with `Some(value)` and `None` constructors
+- **FR-023**: Shadow library MUST provide TypeScript type definitions for `Result<T, E>` with `Ok(value)` and `Err(error)` constructors
+- **FR-024**: Shadow library MUST provide TypeScript type definitions for `Vec<T>` wrapping Array with Rust-compatible method signatures (iter, map, filter, collect)
+- **FR-025**: Shadow rewrite MUST replace standard TypeScript array/object types in import positions with shadow library equivalents
 
-**FR-007**: The `normalize/optional-chaining` normalizer shall convert `?.` optional chaining to Rust `.as_ref().map(|x| x.field)` or `?` operator chains, and `??` nullish coalescing to `.unwrap_or()` or `.unwrap_or_else()`.
+#### Tier 1 Transforms (Deterministic 1:1 Syntax Mapping)
 
-**FR-008**: The `normalize/type-assertion` normalizer shall convert `value as Type` assertions to Rust `.into()`, `.try_into()`, or explicit cast operations depending on the types involved.
+- **FR-026**: System MUST implement `type-primitives` transform mapping: `number` -> `i64`, `string` -> `String`, `boolean` -> `bool`, `void` -> `()`, `never` -> `!`, `bigint` -> `i128`
+- **FR-027**: System MUST implement `const` transform converting `const x: T = v` to `let x: RustT = v` with appropriate Rust type
+- **FR-028**: System MUST implement `interface-to-struct` transform converting TypeScript interfaces to Rust structs with `#[derive(Debug, Clone)]`
+- **FR-029**: System MUST implement `type-alias` transform converting `type X = Y` to `type X = Y;`
+- **FR-030**: System MUST implement `enum` transform converting TypeScript string/numeric enums to Rust enums with `#[derive(Debug, Clone, PartialEq)]`
+- **FR-031**: System MUST implement `arrow-to-closure` transform converting arrow function expressions to Rust closures
+- **FR-032**: System MUST implement `import-to-use` transform converting ESM imports to Rust `use` statements
+- **FR-033**: System MUST implement `template-literal` transform converting template literals to `format!()` macro calls
+- **FR-034**: System MUST implement `array-methods` transform mapping: `.map()` -> `.iter().map().collect()`, `.filter()` -> `.iter().filter().collect()`, `.reduce()` -> `.iter().fold()`, `.find()` -> `.iter().find()`, `.some()` -> `.iter().any()`, `.every()` -> `.iter().all()`, `.forEach()` -> `.iter().for_each()`, `.includes()` -> `.contains()`
+- **FR-035**: System MUST implement `string-methods` transform mapping: `.includes()` -> `.contains()`, `.startsWith()` -> `.starts_with()`, `.endsWith()` -> `.ends_with()`, `.indexOf()` -> `.find()`, `.slice()` -> index range syntax, `.toUpperCase()` -> `.to_uppercase()`, `.toLowerCase()` -> `.to_lowercase()`, `.trim()` -> `.trim()`, `.split()` -> `.split()`, `.replace()` -> `.replace()`, `.length` -> `.len()`
+- **FR-036**: System MUST implement `record-to-hashmap` transform converting `Record<K, V>` to `HashMap<K, V>` with `use std::collections::HashMap`
 
-**FR-009**: The `normalize/generics` normalizer shall convert TypeScript generic type parameters and constraints (`<T extends U>`) to Rust generic parameters with trait bounds (`<T: U>`), including `where` clauses for complex bounds.
+#### Tier 2 Transforms (Deterministic Pattern Mapping)
 
-**FR-010**: The `normalize/decorator` normalizer shall convert TypeScript decorators to Rust attribute macros where a direct mapping exists, and route unmappable decorators to tier3 prompt markers.
+- **FR-037**: System MUST implement `async-await` transform converting async functions to Rust async fn with appropriate Future return types
+- **FR-038**: System MUST implement `class-to-struct-impl` transform converting classes to struct + impl blocks, mapping constructors to `fn new()`, methods to impl methods, and static methods to associated functions
+- **FR-039**: System MUST implement `destructuring` transform converting object/array destructuring to Rust pattern matching in let bindings
+- **FR-040**: System MUST implement `nullish-coalescing` transform converting `??` to `.unwrap_or()` or `.unwrap_or_else()`
+- **FR-041**: System MUST implement `object-spread` transform converting `{...a, ...b}` to struct update syntax or manual field merge
+- **FR-042**: System MUST implement `optional-chaining` transform converting `?.` chains to `.as_ref().and_then()` or `if let Some()` chains
+- **FR-043**: System MUST implement `result-chain` transform converting sequential Result operations to use the `?` operator
+- **FR-044**: System MUST implement `try-catch-to-match` transform converting remaining try/catch patterns to `match` expressions on Result values
 
-**FR-011**: The shadow rewrite package shall rewrite imports for the 3 supported TS shadow libraries. Each shadow library mirrors a subset of Node.js or TS runtime APIs with Rust crate equivalents (e.g., `fs` operations to `std::fs`, `path` operations to `std::path`, `crypto` to a Rust crypto crate).
+#### Pipeline Orchestration
 
-**FR-012**: The 29 tier1/tier2 transforms shall cover the following categories:
-- **Tier 1 - Syntax** (transforms 1-8): braces/semicolons (already present in TS, normalize), `function`/`const fn` to `fn`, `let`/`const` to `let`/`let mut`, arrow functions to closures, template literals to `format!()`, destructuring to Rust pattern matching, spread operator to iterator chains, type annotations syntax.
-- **Tier 1 - Errors** (transforms 9-12): `throw` to `return Err()`, `try/catch` to `match` on `Result`, error class hierarchies to error enums with `thiserror`, `finally` blocks to `Drop` or explicit cleanup.
-- **Tier 1 - Types** (transforms 13-18): `string`->`String`, `number`->`i64`/`f64` (based on usage analysis), `boolean`->`bool`, `Array<T>`->`Vec<T>`, `Map<K,V>`->`HashMap<K,V>`, `Set<T>`->`HashSet<T>`.
-- **Tier 2 - Control** (transforms 19-24): `for...of` to `for x in iter`, `for...in` to `for (k, v) in map.iter()`, `switch/case` to `match`, `if/else` chains to `match` where applicable, `while`/`do-while` to `loop`/`while`, iterator methods (`.map`/`.filter`/`.reduce`) to Rust iterator chains.
-- **Tier 2 - Modules** (transforms 25-29): `import/export` to `mod`/`use`/`pub`, `default export` to `pub fn`/`pub struct`, barrel files (`index.ts`) to `mod.rs`, namespace imports to module aliases, re-exports to `pub use`.
-
-**FR-013**: Tier 3 prompt markers shall be emitted for any construct that no mechanical transform can handle. Each marker shall contain: the original TypeScript source, the surrounding Rust context, the list of transforms that were attempted, and a suggested Rust pattern.
-
-**FR-014**: The end-to-end pipeline shall execute stages in order: profile validation -> normalizers (10 stages) -> shadow rewrite -> tier1 transforms -> tier2 transforms -> tier3 prompts -> cargo build verification. Each stage shall be independently runnable.
-
-**FR-015**: The pipeline shall produce a translation report (JSON) listing: files processed, transforms applied per file, normalizers applied, tier3 prompts generated, and cargo build/clippy/test results.
+- **FR-045**: System MUST execute transforms in strict tier order: Tier 0 (normalize) -> Tier 0.5 (shadow rewrite) -> Tier 1 -> Tier 2
+- **FR-046**: Within each tier, transforms MUST execute in a defined, deterministic order
+- **FR-047**: System MUST preserve source location information through all transforms to enable diagnostic error reporting with original file/line references
+- **FR-048**: System MUST emit structured diagnostic messages (errors, warnings) when encountering constructs that cannot be translated, including the source file path, line number, and a description of the unsupported pattern
+- **FR-049**: System MUST produce output files with `.rs` extension in a configurable output directory, mirroring the input directory structure
 
 ### Key Entities
 
-| Entity | Description |
-|---|---|
-| **TS-as-Rust Profile** | A set of ast-grep rules defining the subset of TypeScript that is mechanically translatable to Rust. Files must pass validation before entering the pipeline. |
-| **Normalizer** | One of 10 pre-processing transforms that rewrite TS-specific idioms (Promise, interface, enum, class, union types, optional chaining, nullish coalescing, type assertions, generics, decorators) to intermediate forms. |
-| **Shadow Library** | A TypeScript package mirroring a runtime API but mapping to a Rust crate. 3 shadow libraries supported. |
-| **Transform** | A codemod rule (ast-grep or programmatic) converting one syntactic or semantic pattern from TypeScript to Rust. 29 transforms across tier1 and tier2. |
-| **Tier** | Ordering level: Tier 0: normalizers, Tier 0.5: shadow rewrite, Tier 1: syntax/errors/types, Tier 2: control/modules, Tier 3: AI prompts. |
-| **Pipeline** | The orchestrator running all tiers in sequence on input `.ts` files, producing `.rs` output and a translation report. |
-| **Translation Report** | Structured JSON summarizing transforms applied, successes, failures, and tier3 prompt locations. |
+- **Transform**: A single AST-to-AST or AST-to-text rewriting function that takes a TypeScript AST node tree and produces a modified tree (normalize/tier1/tier2) or Rust source text (final emission). Each transform has a tier, an execution order within that tier, and a set of input/output contracts.
+- **Profile**: A set of rules defining the TS-as-Rust subset. Used to validate that code conforms to the expected input shape before Tier 1+ transforms run. Stored as declarative rules in `profile/rules/`.
+- **Shadow Library**: TypeScript type definition packages that provide Rust-equivalent types (Option, Result, Vec, HashMap) as TypeScript interfaces and classes. These exist only during the TS phase and are stripped during Rust emission.
+- **Pipeline**: The ordered composition of all transforms across tiers, taking a TypeScript source file as input and producing a Rust source file as output.
+- **Diagnostic**: A structured message emitted when the pipeline encounters code it cannot translate, containing severity (error/warning), source location, and description.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-**SC-001**: All 10 normalizers pass their unit test suites with at least 8 test cases each covering normal, boundary, and error conditions.
-
-**SC-002**: The shadow rewrite package correctly rewrites imports for all 3 supported TS shadow libraries, verified by a test suite covering `import X from 'lib'`, `import { Y } from 'lib'`, and `import * as Z from 'lib'` forms.
-
-**SC-003**: All 29 tier1/tier2 transforms pass their unit test suites with at least 3 test cases each.
-
-**SC-004**: At least 3 real-world TypeScript files (minimum 100 lines each, using interfaces, classes, async/await, generics, and error handling) translate end-to-end to Rust that passes `cargo build` with zero errors.
-
-**SC-005**: Translated Rust output from profile-compliant TypeScript input requires zero manual editing to pass `cargo build` and `cargo clippy -- -D warnings`.
-
-**SC-006**: The pipeline processes a 500-line TypeScript file in under 30 seconds on a standard development machine.
-
-**SC-007**: Tier 3 prompt markers contain sufficient context that an LLM can resolve them to valid Rust in a single pass at least 80% of the time.
-
-**SC-008**: The ast-grep profile rules catch at least 95% of untranslatable TypeScript patterns, measured against a curated test corpus of 50+ violation examples.
+- **SC-001**: All 10 Tier 0 normalizers pass their individual test suites with at least 3 test cases each (positive, negative, idempotent)
+- **SC-002**: All 11 Tier 1 transforms pass their individual test suites with at least 3 test cases each covering the documented type/syntax mappings
+- **SC-003**: All 8 Tier 2 transforms pass their individual test suites with at least 2 test cases each covering the documented pattern mappings
+- **SC-004**: Shadow rewrite rules correctly rewrite all TS-as-Rust profile type imports to shadow library paths in the test suite
+- **SC-005**: The e2e test suite contains at least 3 TypeScript source files that pass through the full pipeline and produce Rust output that compiles with `cargo check` without errors
+- **SC-006**: Pipeline emits actionable diagnostic errors for at least 5 known unsupported TypeScript patterns (e.g., union types other than Option, class inheritance beyond one level, dynamic property access, eval, Proxy)
+- **SC-007**: Running any normalizer twice on the same input produces byte-identical output (idempotency verification)
+- **SC-008**: Full pipeline execution on a 500-line TypeScript file completes in under 10 seconds on standard hardware

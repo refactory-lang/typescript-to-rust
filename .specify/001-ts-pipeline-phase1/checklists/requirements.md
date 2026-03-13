@@ -1,125 +1,89 @@
-# Quality Checklist: Phase 1 TS Pipeline Requirements
+# Requirements Checklist: TypeScript-to-Rust Pipeline Phase 1
 
-**Feature Branch**: `001-ts-pipeline-phase1`
-**Last Updated**: 2026-03-13
+**Purpose**: Track implementation completeness of all functional requirements for the TS-to-Rust Phase 1 pipeline
+**Created**: 2026-03-13
+**Feature**: [spec.md](../spec.md)
 
-## Profile Validation (ast-grep rules)
+## TS-as-Rust Profile Definition
 
-- [ ] **FR-001** Rule rejects `any` type annotations
-- [ ] **FR-001** Rule rejects `unknown` type used without narrowing
-- [ ] **FR-001** Rule rejects dynamic property access (`obj[dynamicKey]`)
-- [ ] **FR-001** Rule rejects `eval()` calls
-- [ ] **FR-001** Rule rejects `Function()` constructor
-- [ ] **FR-001** Rule rejects `with` statements
-- [ ] **FR-001** Rule rejects prototype manipulation (`X.prototype.y = ...`)
-- [ ] **FR-001** Rule rejects `arguments` object usage
-- [ ] **FR-001** Rule rejects implicit `this` binding (unbound method references)
+- [ ] CHK001 Profile rules directory (`profile/rules/`) contains declarative rule definitions for all permitted TS constructs (FR-001)
+- [ ] CHK002 Profile rule enforces const-only variable declarations, rejecting let and var (FR-002)
+- [ ] CHK003 Profile rule enforces ESM named imports only, rejecting default imports and CommonJS require (FR-003)
+- [ ] CHK004 Profile rule enforces Result<T, E> error handling, rejecting throw and try/catch (FR-004)
+- [ ] CHK005 Profile rule enforces Option<T> for nullable values, rejecting T | null and T | undefined unions (FR-005)
+- [ ] CHK006 Profile rule enforces immutable array operations, rejecting push/pop/splice/shift/unshift (FR-006)
+- [ ] CHK007 Profile rule enforces readonly class fields with explicit type annotations (FR-007)
+- [ ] CHK008 Profile rule enforces explicit type annotations on all function parameters and return types (FR-008)
+- [ ] CHK009 Profile rule prohibits any, unknown (except constrained generics), and type assertions (FR-009)
 
-## Normalizers (10 total)
+## Tier 0 Normalizers
 
-- [ ] **FR-002** `normalize/promise`: `Promise<T>` return types to `Result<T, E>`
-- [ ] **FR-002** `normalize/promise`: `async/await` to Rust async equivalents
-- [ ] **FR-002** `normalize/promise`: `.then()/.catch()` chains to `?` operator chains
-- [ ] **FR-003** `normalize/interface`: Interface-as-trait (polymorphic usage) to `trait`
-- [ ] **FR-003** `normalize/interface`: Interface-as-shape (data usage) to `struct`
-- [ ] **FR-003** `normalize/interface`: Interface extension (`extends`) to trait inheritance or struct composition
-- [ ] **FR-004** `normalize/enum`: Numeric enums to Rust enum with explicit discriminants
-- [ ] **FR-004** `normalize/enum`: String enums to Rust enum with string-valued variants
-- [ ] **FR-004** `normalize/enum`: Const enums inlined at usage sites
-- [ ] **FR-005** `normalize/class`: `class` to `struct` + `impl`
-- [ ] **FR-005** `normalize/class`: `constructor` to `fn new()`
-- [ ] **FR-005** `normalize/class`: `extends` to trait composition or struct embedding
-- [ ] **FR-005** `normalize/class`: `private`/`protected`/`public` to Rust visibility (`pub`/non-`pub`)
-- [ ] **FR-006** `normalize/union-type`: Union types to Rust enums with variants
-- [ ] **FR-006** `normalize/union-type`: `From` trait implementations generated for each variant
-- [ ] **FR-006** `normalize/union-type`: Discriminated unions (tag field) to Rust enum with `#[serde(tag = "...")]`
-- [ ] **FR-007** `normalize/optional-chaining`: `?.` to `.as_ref().map()` or `?` chains
-- [ ] **FR-007** `normalize/optional-chaining`: `??` to `.unwrap_or()` / `.unwrap_or_else()`
-- [ ] **FR-007** `normalize/optional-chaining`: `?.()` (optional call) to `.map(|f| f())` pattern
-- [ ] **FR-008** `normalize/type-assertion`: `value as Type` to `.into()` / `.try_into()` / cast
-- [ ] **FR-008** `normalize/type-assertion`: `<Type>value` (legacy syntax) to same Rust cast
-- [ ] **FR-009** `normalize/generics`: `<T extends U>` to `<T: U>`
-- [ ] **FR-009** `normalize/generics`: Multiple constraints to `where` clauses
-- [ ] **FR-009** `normalize/generics`: Default type parameters to Rust defaults
-- [ ] **FR-010** `normalize/decorator`: Decorators with direct Rust macro mappings converted
-- [ ] **FR-010** `normalize/decorator`: Unmappable decorators routed to tier3 prompts
+- [ ] CHK010 commonjs-to-esm normalizer rewrites require() to ESM import and module.exports to export (FR-010)
+- [ ] CHK011 let-var-to-const normalizer rewrites let/var to const, introducing new bindings for reassignment (FR-011)
+- [ ] CHK012 throw-to-err normalizer replaces throw with return Err() and updates function signatures (FR-012)
+- [ ] CHK013 implicit-null-to-option normalizer replaces T|null, T|undefined unions with Option<T> (FR-013)
+- [ ] CHK014 try-catch-to-result normalizer rewrites try/catch to Result-based flow with .map()/.mapErr() (FR-014)
+- [ ] CHK015 mutable-array-to-functional normalizer replaces array mutations with immutable alternatives (FR-015)
+- [ ] CHK016 type-assertion-to-explicit normalizer replaces `as` casts with type guards or conversions (FR-016)
+- [ ] CHK017 mutable-class-to-readonly normalizer marks fields readonly, adds builder-pattern setters (FR-017)
+- [ ] CHK018 default-to-named-exports normalizer converts export default to named exports (FR-018)
+- [ ] CHK019 callback-pagination-to-iterator normalizer converts callbacks to async generators (FR-019)
+- [ ] CHK020 All normalizers are idempotent: running on compliant code produces identical output (FR-020)
 
-## Shadow Rewrite (3 libraries)
+## Tier 0.5 Shadow Library Rewrite
 
-- [ ] **FR-011** Shadow library 1: rewrites `import` / `import { ... } from` / `import * as` forms
-- [ ] **FR-011** Shadow library 2: rewrites `import` / `import { ... } from` / `import * as` forms
-- [ ] **FR-011** Shadow library 3: rewrites `import` / `import { ... } from` / `import * as` forms
+- [ ] CHK021 Shadow rewrite rules YAML maps profile types to shadow library import paths (FR-021)
+- [ ] CHK022 Shadow library provides Option<T> with Some(value) and None constructors (FR-022)
+- [ ] CHK023 Shadow library provides Result<T, E> with Ok(value) and Err(error) constructors (FR-023)
+- [ ] CHK024 Shadow library provides Vec<T> wrapping Array with Rust-compatible methods (FR-024)
+- [ ] CHK025 Shadow rewrite replaces standard TS types in imports with shadow equivalents (FR-025)
 
-## Tier 1 - Syntax Transforms (1-8)
+## Tier 1 Transforms
 
-- [ ] **FR-012** Transform 1: Braces/semicolons normalization
-- [ ] **FR-012** Transform 2: `function` / `const fn` to `fn`
-- [ ] **FR-012** Transform 3: `let`/`const` to `let`/`let mut`
-- [ ] **FR-012** Transform 4: Arrow functions to closures (`|args| { body }`)
-- [ ] **FR-012** Transform 5: Template literals to `format!()`
-- [ ] **FR-012** Transform 6: Destructuring to Rust pattern matching
-- [ ] **FR-012** Transform 7: Spread operator to iterator chains
-- [ ] **FR-012** Transform 8: Type annotation syntax (`x: Type` stays, generics `<T>` adjusted)
+- [ ] CHK026 type-primitives maps number->i64, string->String, boolean->bool, void->(), never->!, bigint->i128 (FR-026)
+- [ ] CHK027 const transform converts const x: T = v to let x: RustT = v (FR-027)
+- [ ] CHK028 interface-to-struct converts interfaces to structs with #[derive(Debug, Clone)] (FR-028)
+- [ ] CHK029 type-alias converts type X = Y to type X = Y; (FR-029)
+- [ ] CHK030 enum converts TS enums to Rust enums with #[derive(Debug, Clone, PartialEq)] (FR-030)
+- [ ] CHK031 arrow-to-closure converts arrow functions to Rust closures (FR-031)
+- [ ] CHK032 import-to-use converts ESM imports to Rust use statements (FR-032)
+- [ ] CHK033 template-literal converts template literals to format!() macro calls (FR-033)
+- [ ] CHK034 array-methods maps map/filter/reduce/find/some/every/forEach/includes to Rust iterator equivalents (FR-034)
+- [ ] CHK035 string-methods maps includes/startsWith/endsWith/indexOf/slice/toUpperCase/toLowerCase/trim/split/replace/length to Rust equivalents (FR-035)
+- [ ] CHK036 record-to-hashmap converts Record<K,V> to HashMap<K,V> with use std::collections::HashMap (FR-036)
 
-## Tier 1 - Error Transforms (9-12)
+## Tier 2 Transforms
 
-- [ ] **FR-012** Transform 9: `throw` to `return Err()`
-- [ ] **FR-012** Transform 10: `try/catch` to `match` on `Result`
-- [ ] **FR-012** Transform 11: Error class hierarchies to error enums with `thiserror`
-- [ ] **FR-012** Transform 12: `finally` blocks to `Drop` or explicit cleanup
+- [ ] CHK037 async-await converts async functions to Rust async fn with Future return types (FR-037)
+- [ ] CHK038 class-to-struct-impl converts classes to struct + impl blocks with fn new() constructors (FR-038)
+- [ ] CHK039 destructuring converts object/array destructuring to Rust pattern matching (FR-039)
+- [ ] CHK040 nullish-coalescing converts ?? to .unwrap_or() or .unwrap_or_else() (FR-040)
+- [ ] CHK041 object-spread converts {...a, ...b} to struct update syntax or field merge (FR-041)
+- [ ] CHK042 optional-chaining converts ?. chains to .as_ref().and_then() or if let Some() (FR-042)
+- [ ] CHK043 result-chain converts sequential Result operations to use the ? operator (FR-043)
+- [ ] CHK044 try-catch-to-match converts try/catch to match on Result values (FR-044)
 
-## Tier 1 - Type Transforms (13-18)
+## Pipeline Orchestration
 
-- [ ] **FR-012** Transform 13: `string` -> `String`
-- [ ] **FR-012** Transform 14: `number` -> `i64`/`f64` (usage-based)
-- [ ] **FR-012** Transform 15: `boolean` -> `bool`
-- [ ] **FR-012** Transform 16: `Array<T>` / `T[]` -> `Vec<T>`
-- [ ] **FR-012** Transform 17: `Map<K,V>` -> `HashMap<K,V>`
-- [ ] **FR-012** Transform 18: `Set<T>` -> `HashSet<T>`
-
-## Tier 2 - Control Transforms (19-24)
-
-- [ ] **FR-012** Transform 19: `for...of` to `for x in iter`
-- [ ] **FR-012** Transform 20: `for...in` to `for (k, v) in map.iter()`
-- [ ] **FR-012** Transform 21: `switch/case` to `match`
-- [ ] **FR-012** Transform 22: `if/else` chains to `match` where applicable
-- [ ] **FR-012** Transform 23: `while`/`do-while` to `loop`/`while`
-- [ ] **FR-012** Transform 24: `.map()`/`.filter()`/`.reduce()` to Rust iterator chains
-
-## Tier 2 - Module Transforms (25-29)
-
-- [ ] **FR-012** Transform 25: `import`/`export` to `mod`/`use`/`pub`
-- [ ] **FR-012** Transform 26: `default export` to `pub fn`/`pub struct`
-- [ ] **FR-012** Transform 27: Barrel files (`index.ts`) to `mod.rs`
-- [ ] **FR-012** Transform 28: Namespace imports to module aliases
-- [ ] **FR-012** Transform 29: Re-exports to `pub use`
-
-## Tier 3 - AI Prompts
-
-- [ ] **FR-013** Untranslatable constructs wrapped in structured prompt comments
-- [ ] **FR-013** Prompt contains original TypeScript source
-- [ ] **FR-013** Prompt contains surrounding Rust context
-- [ ] **FR-013** Prompt contains list of attempted transforms
-- [ ] **FR-013** Prompt contains suggested Rust pattern
-
-## Pipeline Integration
-
-- [ ] **FR-014** Stages execute in order: validate -> normalize (10) -> shadow -> tier1 -> tier2 -> tier3 -> cargo verify
-- [ ] **FR-014** Each stage independently runnable
-- [ ] **FR-014** Each stage independently testable with fixture inputs/outputs
-- [ ] **FR-015** Translation report lists files processed
-- [ ] **FR-015** Translation report lists transforms applied per file
-- [ ] **FR-015** Translation report lists normalizers applied
-- [ ] **FR-015** Translation report lists tier3 prompts generated
-- [ ] **FR-015** Translation report includes cargo build/clippy/test results
+- [ ] CHK045 Pipeline executes transforms in strict tier order: Tier 0 -> Tier 0.5 -> Tier 1 -> Tier 2 (FR-045)
+- [ ] CHK046 Within each tier, transforms execute in a defined deterministic order (FR-046)
+- [ ] CHK047 Source location information is preserved through all transforms for diagnostics (FR-047)
+- [ ] CHK048 Structured diagnostics emitted for untranslatable constructs with file path, line, and description (FR-048)
+- [ ] CHK049 Output files use .rs extension in configurable output directory mirroring input structure (FR-049)
 
 ## Success Criteria Verification
 
-- [ ] **SC-001** Each normalizer has 8+ unit tests (normal, boundary, error)
-- [ ] **SC-002** Shadow rewrite tested for all 3 libs, all 3 import forms
-- [ ] **SC-003** Each of 29 transforms has 3+ unit tests
-- [ ] **SC-004** 3+ real TS files (100+ lines each) translate to compilable Rust
-- [ ] **SC-005** Profile-compliant input produces Rust needing zero manual edits
-- [ ] **SC-006** 500-line file processes in under 30 seconds
-- [ ] **SC-007** Tier3 prompts resolvable by LLM 80%+ of the time
-- [ ] **SC-008** Profile rules catch 95%+ of untranslatable patterns (50+ test corpus)
+- [ ] CHK050 All 10 Tier 0 normalizers have test suites with >= 3 test cases each (SC-001)
+- [ ] CHK051 All 11 Tier 1 transforms have test suites with >= 3 test cases each (SC-002)
+- [ ] CHK052 All 8 Tier 2 transforms have test suites with >= 2 test cases each (SC-003)
+- [ ] CHK053 Shadow rewrite rules pass test suite validating all profile type imports (SC-004)
+- [ ] CHK054 E2E test suite has >= 3 TS files that produce Rust output passing cargo check (SC-005)
+- [ ] CHK055 Pipeline emits diagnostics for >= 5 unsupported TS patterns (SC-006)
+- [ ] CHK056 Idempotency verified: all normalizers produce byte-identical output on double run (SC-007)
+- [ ] CHK057 Full pipeline on 500-line TS file completes in under 10 seconds (SC-008)
+
+## Notes
+
+- Check items off as completed: `[x]`
+- Each CHK item references its corresponding FR or SC requirement from spec.md
+- Items are ordered by pipeline execution tier for implementation sequencing
