@@ -1,5 +1,5 @@
 # When an issue is labeled 'spec-ready', comment with instructions
-# for creating the spec (manually or by assigning to claude-bot).
+# for creating the spec (manually or by assigning to Copilot).
 
 name: Spec Ready Notification
 
@@ -25,7 +25,7 @@ jobs:
               ``,
               `This issue is ready to be converted into a formal spec. Two options:`,
               ``,
-              `**Option A — Automated**: Assign this issue to \`claude-bot\` and the spec will be created automatically.`,
+              `**Option A — Automated**: Assign this issue to **Copilot** and the spec will be created automatically.`,
               ``,
               `**Option B — Manual**: Run in the repo checkout:`,
               `\`\`\``,

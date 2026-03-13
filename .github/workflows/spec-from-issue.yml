@@ -1,13 +1,12 @@
-# Triggered when an issue with 'needs-spec' label is assigned to Claude.
+# Triggered when an issue with 'needs-spec' label is assigned to Copilot or claude-bot.
 # Runs claude-code to create a speckit specification from the issue.
 #
 # Prerequisites:
 #   1. Add ANTHROPIC_API_KEY to repo/org secrets
-#   2. Create a 'claude-bot' GitHub user (or use your preferred bot account)
-#   3. The bot needs write access to the repo (for branch creation, comments)
+#   2. Copilot must be enabled for the repo (Settings → Copilot → Enable)
 #
 # Usage:
-#   Assign an issue labeled 'needs-spec' to 'claude-bot' → spec is auto-created
+#   Assign an issue labeled 'needs-spec' to 'copilot' (or 'claude-bot') → spec is auto-created
 
 name: Spec from Issue
 
@@ -22,9 +21,9 @@ permissions:
 
 jobs:
   create-spec:
-    # Only run when assigned to claude-bot AND has needs-spec label
+    # Run when assigned to copilot or claude-bot AND has needs-spec label
     if: |
-      github.event.assignee.login == 'claude-bot' &&
+      (github.event.assignee.login == 'copilot' || github.event.assignee.login == 'Copilot' || github.event.assignee.login == 'claude-bot') &&
       contains(github.event.issue.labels.*.name, 'needs-spec')
     runs-on: ubuntu-latest
     timeout-minutes: 30
