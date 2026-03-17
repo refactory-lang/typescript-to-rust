@@ -208,3 +208,33 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 - **SC-006**: Pipeline emits actionable diagnostic errors for at least 5 known unsupported TypeScript patterns (e.g., union types other than Option, class inheritance beyond one level, dynamic property access, eval, Proxy)
 - **SC-007**: Running any normalizer twice on the same input produces byte-identical output (idempotency verification)
 - **SC-008**: Full pipeline execution on a 500-line TypeScript file completes in under 10 seconds on standard hardware
+
+---
+
+## v0.3 Addendum: Phase 1 Track B Validation Gate
+
+*Added 2026-03-16 to align with master spec v0.3 §9.4*
+
+### 10-Node Translation Benchmark
+
+This spec corresponds to **Phase 1 Track B** (TypeScript Profile Bootstrap). The exit criterion is a 10-node benchmark:
+
+- **10 n8n nodes** (Simple + Medium tier) must translate end-to-end: idiomatic TS → constrained TS (Normalize-Det/LLM) → Rust (T1/T2/T3), compile, tests pass.
+
+### Dual Automation Rate Measurement
+
+The benchmark MUST measure two automation rates **separately**:
+
+1. **Normalize-Det/LLM automation rate** — what percentage of idiomatic TS code converts to constrained TS via deterministic transforms (Normalize-Det) without requiring LLM assistance (Normalize-LLM)
+2. **Tiers 1–3 translation rate** — what percentage of profile-compliant constrained TS converts to Rust via deterministic transforms (T1/T2) without requiring LLM-assisted stubs (T3)
+
+### Fail Condition
+
+> If Normalize-LLM on Simple-tier nodes requires **>40% LLM assistance**, the batch translation economics weaken significantly. In this case, invest in more deterministic Normalize-Det rules before proceeding to batch translation in Phase 2.
+
+### Additional Success Criteria
+
+- **SC-009**: Normalize-LLM automation rate ≥60% on Simple-tier n8n nodes (≤40% requires LLM assistance)
+- **SC-010**: Tiers 1–2 deterministic translation rate ≥80% on profile-compliant TS input (stub-free output)
+- **SC-011**: Tier 3 stub count ≤5 per translated node on average
+- **SC-012**: All 10 benchmark nodes compile and pass tests
