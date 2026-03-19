@@ -1,15 +1,15 @@
-# Feature Specification: TypeScript-to-Rust Pipeline Phase 1
+# Feature Specification: TypeScript-to-Rust Pipeline Milestone 1
 
 **Feature Branch**: `001-ts-pipeline-phase1`
 **Created**: 2026-03-13
 **Status**: Draft
-**Input**: User description: "Implement Phase 1 of the TypeScript-to-Rust translation pipeline - TypeScript-as-Rust profile definition, normalize transforms, shadow library integration, and tier 1-2 deterministic transforms"
+**Input**: User description: "Implement Milestone 1 of the TypeScript-to-Rust transformation pipeline - TypeScript-as-Rust profile definition, normalize transforms, shadow library integration, and Stage 1-2 deterministic transforms"
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Normalize Idiomatic TypeScript to Profile-Compliant TypeScript (Priority: P1)
 
-A developer writes idiomatic TypeScript (using CommonJS requires, let/var declarations, throw statements, try/catch blocks, mutable arrays, type assertions, mutable classes, default exports, and callback-based pagination). The pipeline runs the 10 Tier 0 normalizers in sequence, rewriting the source into the TS-as-Rust profile subset before any Rust translation begins.
+A developer writes idiomatic TypeScript (using CommonJS requires, let/var declarations, throw statements, try/catch blocks, mutable arrays, type assertions, mutable classes, default exports, and callback-based pagination). The pipeline runs the 10 Stage 0 normalizers in sequence, rewriting the source into the TS-as-Rust profile subset before any Rust translation begins.
 
 **Why this priority**: Normalization is the foundation of the entire pipeline. Every downstream transform assumes input conforms to the TS-as-Rust profile. Without normalizers, the deterministic transforms produce incorrect or non-compilable output.
 
@@ -30,13 +30,13 @@ A developer writes idiomatic TypeScript (using CommonJS requires, let/var declar
 
 ---
 
-### User Story 2 - Tier 1 Deterministic Type and Syntax Transforms (Priority: P1)
+### User Story 2 - Stage 1 Deterministic Type and Syntax Translate (Priority: P1)
 
-A developer has profile-compliant TypeScript (post-normalization). The pipeline runs 11 Tier 1 transforms that perform direct syntactic translations from TypeScript constructs to their Rust equivalents: primitive types, const bindings, interfaces to structs, type aliases, enums, arrow functions to closures, imports to use statements, template literals to format!, array methods, string methods, and Record to HashMap.
+A developer has profile-compliant TypeScript (post-normalization). The pipeline runs 11 Stage 1 transforms that perform direct syntactic translations from TypeScript constructs to their Rust equivalents: primitive types, const bindings, interfaces to structs, type aliases, enums, arrow functions to closures, imports to use statements, template literals to format!, array methods, string methods, and Record to HashMap.
 
-**Why this priority**: Tier 1 transforms are 1:1 mechanical translations with no ambiguity. They form the bulk of translated output and are prerequisite for Tier 2 transforms that handle more complex patterns.
+**Why this priority**: Stage 1 transforms are 1:1 mechanical translations with no ambiguity. They form the bulk of translated output and are prerequisite for Stage 2 transforms that handle more complex patterns.
 
-**Independent Test**: Pass a normalized TypeScript file containing interfaces, const declarations, enums, arrow functions, and template literals through the Tier 1 pipeline. Verify each construct maps to its Rust equivalent.
+**Independent Test**: Pass a normalized TypeScript file containing interfaces, const declarations, enums, arrow functions, and template literals through the Stage 1 pipeline. Verify each construct maps to its Rust equivalent.
 
 **Acceptance Scenarios**:
 
@@ -70,13 +70,13 @@ After normalization, the pipeline replaces TypeScript standard library and third
 
 ---
 
-### User Story 4 - Tier 2 Deterministic Pattern Transforms (Priority: P2)
+### User Story 4 - Stage 2 Deterministic Pattern Translate (Priority: P2)
 
-A developer has TypeScript code that uses async/await, classes, destructuring, nullish coalescing, object spread, optional chaining, Result chains, and try/catch. The pipeline applies 8 Tier 2 transforms that translate these patterns into idiomatic Rust equivalents.
+A developer has TypeScript code that uses async/await, classes, destructuring, nullish coalescing, object spread, optional chaining, Result chains, and try/catch. The pipeline applies 8 Stage 2 transforms that translate these patterns into idiomatic Rust equivalents.
 
-**Why this priority**: Tier 2 transforms handle patterns that are common in real-world TypeScript but require structural changes (not just syntactic substitution). They depend on Tier 1 type mappings being in place.
+**Why this priority**: Stage 2 transforms handle patterns that are common in real-world TypeScript but require structural changes (not just syntactic substitution). They depend on Stage 1 type mappings being in place.
 
-**Independent Test**: Pass a file containing a TypeScript class with async methods, destructuring assignments, optional chaining, and nullish coalescing through the Tier 2 pipeline. Verify each pattern translates to idiomatic Rust.
+**Independent Test**: Pass a file containing a TypeScript class with async methods, destructuring assignments, optional chaining, and nullish coalescing through the Stage 2 pipeline. Verify each pattern translates to idiomatic Rust.
 
 **Acceptance Scenarios**:
 
@@ -93,11 +93,11 @@ A developer has TypeScript code that uses async/await, classes, destructuring, n
 
 ### User Story 5 - End-to-End Pipeline Execution (Priority: P3)
 
-A developer runs the full pipeline on a TypeScript source file. The pipeline executes all stages in order: normalize (Tier 0) -> shadow rewrite (Tier 0.5) -> Tier 1 transforms -> Tier 2 transforms. The final output is a syntactically valid Rust source file that compiles with `rustc` or `cargo build`.
+A developer runs the full pipeline on a TypeScript source file. The pipeline executes all stages in order: normalize (Stage 0) -> shadow rewrite (Stage 0.5) -> Stage 1 transforms -> Stage 2 transforms. The final output is a syntactically valid Rust source file that compiles with `rustc` or `cargo build`.
 
 **Why this priority**: E2E validation proves the pipeline stages compose correctly. Individual transforms may each be correct but produce incompatible intermediate states if not properly ordered.
 
-**Independent Test**: Create a TypeScript file that exercises at least one construct from each tier. Run the full pipeline and verify the Rust output compiles without errors using `cargo check`.
+**Independent Test**: Create a TypeScript file that exercises at least one construct from each stage. Run the full pipeline and verify the Rust output compiles without errors using `cargo check`.
 
 **Acceptance Scenarios**:
 
@@ -133,7 +133,7 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 - **FR-008**: Profile MUST require explicit type annotations on all function parameters and return types
 - **FR-009**: Profile MUST prohibit `any`, `unknown` (except in constrained generics), and type assertions
 
-#### Tier 0 Normalizers
+#### Stage 0 Normalizers
 
 - **FR-010**: System MUST implement `commonjs-to-esm` normalizer that rewrites `require()` calls to ESM `import` statements and `module.exports` to `export`
 - **FR-011**: System MUST implement `let-var-to-const` normalizer that rewrites all `let` and `var` declarations to `const`, introducing new bindings where reassignment occurs
@@ -147,7 +147,7 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 - **FR-019**: System MUST implement `callback-pagination-to-iterator` normalizer that converts callback-based pagination into async generator functions using `yield*`
 - **FR-020**: Each normalizer MUST be idempotent: running a normalizer on already-compliant code MUST produce identical output
 
-#### Tier 0.5 Shadow Library Rewrite
+#### Stage 0.5 Shadow Library Rewrite
 
 - **FR-021**: System MUST implement shadow rewrite rules (in `typescript-shadow-rewrite/rules/rewrite-ts-shadows.yml`) that map TS-as-Rust profile types to shadow library import paths
 - **FR-022**: Shadow library MUST provide TypeScript type definitions for `Option<T>` with `Some(value)` and `None` constructors
@@ -155,7 +155,7 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 - **FR-024**: Shadow library MUST provide TypeScript type definitions for `Vec<T>` wrapping Array with Rust-compatible method signatures (iter, map, filter, collect)
 - **FR-025**: Shadow rewrite MUST replace standard TypeScript array/object types in import positions with shadow library equivalents
 
-#### Tier 1 Transforms (Deterministic 1:1 Syntax Mapping)
+#### Stage 1 Transforms (Deterministic 1:1 Syntax Mapping)
 
 - **FR-026**: System MUST implement `type-primitives` transform mapping: `number` -> `i64`, `string` -> `String`, `boolean` -> `bool`, `void` -> `()`, `never` -> `!`, `bigint` -> `i128`
 - **FR-027**: System MUST implement `const` transform converting `const x: T = v` to `let x: RustT = v` with appropriate Rust type
@@ -169,7 +169,7 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 - **FR-035**: System MUST implement `string-methods` transform mapping: `.includes()` -> `.contains()`, `.startsWith()` -> `.starts_with()`, `.endsWith()` -> `.ends_with()`, `.indexOf()` -> `.find()`, `.slice()` -> index range syntax, `.toUpperCase()` -> `.to_uppercase()`, `.toLowerCase()` -> `.to_lowercase()`, `.trim()` -> `.trim()`, `.split()` -> `.split()`, `.replace()` -> `.replace()`, `.length` -> `.len()`
 - **FR-036**: System MUST implement `record-to-hashmap` transform converting `Record<K, V>` to `HashMap<K, V>` with `use std::collections::HashMap`
 
-#### Tier 2 Transforms (Deterministic Pattern Mapping)
+#### Stage 2 Transforms (Deterministic Pattern Mapping)
 
 - **FR-037**: System MUST implement `async-await` transform converting async functions to Rust async fn with appropriate Future return types
 - **FR-038**: System MUST implement `class-to-struct-impl` transform converting classes to struct + impl blocks, mapping constructors to `fn new()`, methods to impl methods, and static methods to associated functions
@@ -182,27 +182,27 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 
 #### Pipeline Orchestration
 
-- **FR-045**: System MUST execute transforms in strict tier order: Tier 0 (normalize) -> Tier 0.5 (shadow rewrite) -> Tier 1 -> Tier 2
-- **FR-046**: Within each tier, transforms MUST execute in a defined, deterministic order
+- **FR-045**: System MUST execute transforms in strict stage order: Stage 0 (normalize) -> Stage 0.5 (shadow rewrite) -> Stage 1 -> Stage 2
+- **FR-046**: Within each stage, transforms MUST execute in a defined, deterministic order
 - **FR-047**: System MUST preserve source location information through all transforms to enable diagnostic error reporting with original file/line references
 - **FR-048**: System MUST emit structured diagnostic messages (errors, warnings) when encountering constructs that cannot be translated, including the source file path, line number, and a description of the unsupported pattern
 - **FR-049**: System MUST produce output files with `.rs` extension in a configurable output directory, mirroring the input directory structure
 
 ### Key Entities
 
-- **Transform**: A single AST-to-AST or AST-to-text rewriting function that takes a TypeScript AST node tree and produces a modified tree (normalize/tier1/tier2) or Rust source text (final emission). Each transform has a tier, an execution order within that tier, and a set of input/output contracts.
-- **Profile**: A set of rules defining the TS-as-Rust subset. Used to validate that code conforms to the expected input shape before Tier 1+ transforms run. Stored as declarative rules in `profile/rules/`.
+- **Transform**: A single AST-to-AST or AST-to-text rewriting function that takes a TypeScript AST node tree and produces a modified tree (normalize/stage1/stage2) or Rust source text (final emission). Each transform has a stage, an execution order within that stage, and a set of input/output contracts.
+- **Profile**: A set of rules defining the TS-as-Rust subset. Used to validate that code conforms to the expected input shape before Stage 1+ transforms run. Stored as declarative rules in `profile/rules/`.
 - **Shadow Library**: TypeScript type definition packages that provide Rust-equivalent types (Option, Result, Vec, HashMap) as TypeScript interfaces and classes. These exist only during the TS phase and are stripped during Rust emission.
-- **Pipeline**: The ordered composition of all transforms across tiers, taking a TypeScript source file as input and producing a Rust source file as output.
+- **Pipeline**: The ordered composition of all transforms across stages, taking a TypeScript source file as input and producing a Rust source file as output.
 - **Diagnostic**: A structured message emitted when the pipeline encounters code it cannot translate, containing severity (error/warning), source location, and description.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: All 10 Tier 0 normalizers pass their individual test suites with at least 3 test cases each (positive, negative, idempotent)
-- **SC-002**: All 11 Tier 1 transforms pass their individual test suites with at least 3 test cases each covering the documented type/syntax mappings
-- **SC-003**: All 8 Tier 2 transforms pass their individual test suites with at least 2 test cases each covering the documented pattern mappings
+- **SC-001**: All 10 Stage 0 normalizers pass their individual test suites with at least 3 test cases each (positive, negative, idempotent)
+- **SC-002**: All 11 Stage 1 transforms pass their individual test suites with at least 3 test cases each covering the documented type/syntax mappings
+- **SC-003**: All 8 Stage 2 transforms pass their individual test suites with at least 2 test cases each covering the documented pattern mappings
 - **SC-004**: Shadow rewrite rules correctly rewrite all TS-as-Rust profile type imports to shadow library paths in the test suite
 - **SC-005**: The e2e test suite contains at least 3 TypeScript source files that pass through the full pipeline and produce Rust output that compiles with `cargo check` without errors
 - **SC-006**: Pipeline emits actionable diagnostic errors for at least 5 known unsupported TypeScript patterns (e.g., union types other than Option, class inheritance beyond one level, dynamic property access, eval, Proxy)
@@ -211,30 +211,30 @@ A developer runs the full pipeline on a TypeScript source file. The pipeline exe
 
 ---
 
-## v0.3 Addendum: Phase 1 Track B Validation Gate
+## v0.3 Addendum: Milestone 1 Track B Validation Gate
 
 *Added 2026-03-16 to align with master spec v0.3 §9.4*
 
 ### 10-Node Translation Benchmark
 
-This spec corresponds to **Phase 1 Track B** (TypeScript Profile Bootstrap). The exit criterion is a 10-node benchmark:
+This spec corresponds to **Milestone 1 Track B** (TypeScript Profile Bootstrap). The exit criterion is a 10-node benchmark:
 
-- **10 n8n nodes** (Simple + Medium tier) must translate end-to-end: idiomatic TS → constrained TS (Normalize-Det/LLM) → Rust (T1/T2/T3), compile, tests pass.
+- **10 n8n nodes** (Simple + Medium tier) must translate end-to-end: idiomatic TS → constrained TS (Normalize-Det/LLM) → Rust (S1/S2/S3), compile, tests pass.
 
 ### Dual Automation Rate Measurement
 
 The benchmark MUST measure two automation rates **separately**:
 
 1. **Normalize-Det/LLM automation rate** — what percentage of idiomatic TS code converts to constrained TS via deterministic transforms (Normalize-Det) without requiring LLM assistance (Normalize-LLM)
-2. **Tiers 1–3 translation rate** — what percentage of profile-compliant constrained TS converts to Rust via deterministic transforms (T1/T2) without requiring LLM-assisted stubs (T3)
+2. **Stages 1–3 translation rate** — what percentage of profile-compliant constrained TS converts to Rust via deterministic transforms (S1/S2) without requiring LLM-assisted stubs (S3)
 
 ### Fail Condition
 
-> If Normalize-LLM on Simple-tier nodes requires **>40% LLM assistance**, the batch translation economics weaken significantly. In this case, invest in more deterministic Normalize-Det rules before proceeding to batch translation in Phase 2.
+> If Normalize-LLM on Simple-tier nodes requires **>40% LLM assistance**, the batch translation economics weaken significantly. In this case, invest in more deterministic Normalize-Det rules before proceeding to batch translation in Milestone 2.
 
 ### Additional Success Criteria
 
 - **SC-009**: Normalize-LLM automation rate ≥60% on Simple-tier n8n nodes (≤40% requires LLM assistance)
-- **SC-010**: Tiers 1–2 deterministic translation rate ≥80% on profile-compliant TS input (stub-free output)
-- **SC-011**: Tier 3 stub count ≤5 per translated node on average
+- **SC-010**: Stages 1–2 deterministic translation rate ≥80% on profile-compliant TS input (stub-free output)
+- **SC-011**: Stage 3 stub count ≤5 per translated node on average
 - **SC-012**: All 10 benchmark nodes compile and pass tests
