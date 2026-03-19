@@ -45,7 +45,7 @@ jobs:
               issueType === 'Feature' ||
               labels.includes('feature') ||
               labels.includes('needs-spec') ||
-              title.startsWith('Phase ');
+              title.startsWith('Milestone ');
 
             // Skip unsupported types
             const isUnsupported =
