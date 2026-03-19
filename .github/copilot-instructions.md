@@ -17,7 +17,7 @@ When you are assigned an issue with the `needs-spec` label, your job is to creat
    ```bash
    .specify/scripts/bash/create-new-feature.sh "" --json --short-name "<short-name>" "<feature description from issue>"
    ```
-   - Extract a 2-4 word short name from the issue title (e.g., "tier2-control-flow")
+   - Extract a 2-4 word short name from the issue title (e.g., "stage2-control-flow")
    - Do NOT pass `--number` — the script auto-detects the next available number
    - The script creates the branch and initializes the spec directory
 

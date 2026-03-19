@@ -1,3 +1,3 @@
-// TS to Rust: tier2-class-to-struct-impl
+// TS to Rust: stage1-enum
 const transform = (root: any) => null;
 export default transform;

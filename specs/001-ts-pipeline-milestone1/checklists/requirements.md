@@ -1,6 +1,6 @@
-# Requirements Checklist: TypeScript-to-Rust Pipeline Phase 1
+# Requirements Checklist: TypeScript-to-Rust Pipeline Milestone 1
 
-**Purpose**: Track implementation completeness of all functional requirements for the TS-to-Rust Phase 1 pipeline
+**Purpose**: Track implementation completeness of all functional requirements for the TS-to-Rust Milestone 1 pipeline
 **Created**: 2026-03-13
 **Feature**: [spec.md](../spec.md)
 

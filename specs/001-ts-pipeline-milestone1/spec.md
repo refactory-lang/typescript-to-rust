@@ -1,6 +1,6 @@
 # Feature Specification: TypeScript-to-Rust Pipeline Milestone 1
 
-**Feature Branch**: `001-ts-pipeline-phase1`
+**Feature Branch**: `001-ts-pipeline-milestone1`
 **Created**: 2026-03-13
 **Status**: Draft
 **Input**: User description: "Implement Milestone 1 of the TypeScript-to-Rust transformation pipeline - TypeScript-as-Rust profile definition, normalize transforms, shadow library integration, and Stage 1-2 deterministic transforms"

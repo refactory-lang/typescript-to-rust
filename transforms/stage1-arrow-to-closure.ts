@@ -1,3 +1,3 @@
-// TS to Rust: tier1-import-to-use
+// TS to Rust: stage1-arrow-to-closure
 const transform = (root: any) => null;
 export default transform;

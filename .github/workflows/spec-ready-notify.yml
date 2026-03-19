@@ -201,7 +201,7 @@ jobs:
                 '```bash',
                 `.specify/scripts/bash/create-new-feature.sh "" --json --short-name "<SHORT_NAME>" "<ISSUE_TITLE>"`,
                 '```',
-                `- Extract a 2-4 word \`<SHORT_NAME>\` from this issue title (e.g., \`tier2-control-flow\`)`,
+                `- Extract a 2-4 word \`<SHORT_NAME>\` from this issue title (e.g., \`stage2-control-flow\`)`,
                 `- Do NOT pass \`--number\` — the script auto-detects the next available number`,
                 `- Parse the JSON output to get \`BRANCH_NAME\` and \`SPEC_FILE\` paths`,
                 ``,

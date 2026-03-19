@@ -1,3 +1,3 @@
-// TS to Rust: tier2-optional-chaining
+// TS to Rust: stage1-type-primitives
 const transform = (root: any) => null;
 export default transform;
